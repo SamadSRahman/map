@@ -1,101 +1,60 @@
-import { mappls, mappls_plugin } from "mappls-web-maps";
-import { useEffect, useRef, useState } from "react";
-import RoutePolyline from "./components/RoutePolyline";
-
-const mapplsClassObject = new mappls();
-const mapplsPluginObject = new mappls_plugin();
+import React, { useState } from "react";
 
 const App = () => {
-  const mapRef = useRef(null);
-  const [isMapLoaded, setIsMapLoaded] = useState(false);
-  const [source, setSource] = useState("");
-  const [destination, setDestination] = useState("");
-  const [routeCoordinates, setRouteCoordinates] = useState(null);
-  const loadObject = {
-    map: true,
-    plugins: ["direction"],
-    layers: ["route", "raster"],
-    libraries: ["polyline", "polydraw"],
-  };
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    mapplsClassObject.initialize(
-      "4bc7fb9f-d1e2-4b74-b1f7-ee0ada0c67b6",
-      loadObject,
-      () => {
-        const newMap = mapplsClassObject.Map({
-          id: "map",
-          properties: {
-            center: [28.633, 77.2194],
-            zoom: 4,
-          },
-        });
+  const handleSearch = async () => {
+    setLoading(true);
+    setError(null);
 
-        newMap.on("load", () => {
-          setIsMapLoaded(true);
-          mapRef.current = newMap;
-        });
+    const url = `https://atlas.mappls.com/api/places/search/json?bridge=&query=${query}&location=28.627133913995547,77.23553525204144`;
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: "Bearer 4bc7fb9f-d1e2-4b74-b1f7-ee0ada0c67b6",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    );
 
-    return () => {
-      if (mapRef.current) {
-        mapRef.current.remove();
-      }
-    };
-  }, []);
-
-  const getRoute = () => {
-    mapplsPluginObject.direction({
-      map: mapRef.current,
-      destination: destination,
-      source: source,
-      // pod: 'none',
-
-      callback: function (data) {
-        if (data.routes && data.routes[0]) {
-          setRouteCoordinates(data.routes[0].geometry.coordinates);
-        }
-      },
-    });
+      const data = await response.json();
+      setResults(data?.suggestions || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div>
-      <div
-        style={{
-          padding: "20px",
-          backgroundColor: "#f5f5f5",
-          display: "flex",
-          gap: "15px",
-        }}
-      >
-        <input
-          type="text"
-          placeholder="Enter source location"
-          value={source}
-          onChange={(e) => setSource(e.target.value)}
-        />
-        <input
-          type="text"
-          placeholder="Enter destination"
-          value={destination}
-          onChange={(e) => setDestination(e.target.value)}
-        />
-        <button onClick={getRoute}>Get Route</button>
-      </div>
-      <div
-        id="map"
-        style={{
-          width: "100vw",
-          height: "calc(99vh - 60px)",
-          display: "inline-block",
-        }}
-      >
-        {isMapLoaded && routeCoordinates && (
-          <RoutePolyline map={mapRef.current} coordinates={routeCoordinates} />
-        )}
-      </div>
+      <h1>MapMyIndia Search</h1>
+      <input
+        type="text"
+        value={query}
+        placeholder="Enter query"
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      <button onClick={handleSearch} disabled={loading}>
+        {loading ? "Searching..." : "Search"}
+      </button>
+
+      {error && <p style={{ color: "red" }}>{error}</p>}
+
+      <ul>
+        {results.map((item, index) => (
+          <li key={index}>
+            {item.placeName} - {item.placeAddress}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 };
